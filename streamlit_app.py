@@ -1,5 +1,12 @@
 import streamlit as st
 from transformers import pipeline
+st.set_page_config(
+    page_title="BioGPT Chatbot",
+    page_icon="🧬",
+    layout="centered"
+)
+
+st.title("🧬 BioGPT Medical Assistant")
 # Page settings
 st.set_page_config(page_title='BioGPT Health Chatbot', page_icon="🩺")
 # Title and description
