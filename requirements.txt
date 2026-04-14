@@ -2,3 +2,7 @@ streamlit
 transformers
 torch
 sacremoses
+langchain-huggingface
+langchain-community
+faiss-cpu
+torchvision
