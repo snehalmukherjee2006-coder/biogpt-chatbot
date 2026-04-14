@@ -2,9 +2,3 @@ streamlit
 transformers
 torch
 sacremoses
-langchain-huggingface
-sentence-transformers>=5.2.0
-langchain-community
-faiss-cpu
-torchvision
-pypdf
