@@ -1,47 +1,97 @@
-import streamlit as st 
-from transformers import pipeline 
-st.set_page_config( page_title="BioGPT Chatbot", page_icon="🧬", layout="centered" ) 
-st.title("🧬 BioGPT Medical Assistant") 
-st.markdown("---") 
-# Page settings 
-st.set_page_config(page_title='BioGPT Health Chatbot', page_icon="🩺") 
-# Title and description 
-st.title('BioGPT Health Chatbot') 
-st.caption('Ask me any health or biology question!') 
-# Load the AI model (cached so it loads only once) 
-@st.cache_resource 
-def load_model(): 
-  return pipeline('text-generation', model='microsoft/biogpt') 
-chatbot = load_model() 
-# Store chat history 
-if 'messages' not in st.session_state: 
-  st.session_state.messages = [] 
-  # Show previous messages 
-  for msg in st.session_state.messages: 
-    with st.chat_message(msg['role']): 
-      st.write(msg['content']) 
-  # Get user input 
-  user_input = st.chat_input('Type your health question here...') 
-  if user_input: 
-    # Show user message 
-    st.session_state.messages.append({'role': 'user', 'content': user_input}) 
-    with st.chat_message('user'): st.write(user_input) 
-    # Get AI answer 
+import streamlit as st
+from transformers import pipeline
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+
+# 1. Page Configuration
+st.set_page_config(
+    page_title="BioGPT Medical Assistant",
+    page_icon="🧬",
+    layout="centered"
+)
+
+# 2. Sidebar with Logo and Info
+with st.sidebar:
+    try:
+        st.image("logo.png", width=200)
+    except:
+        st.warning("Logo 'logo.png' not found.")
+    
+    st.title("Navigation & Info")
+    st.markdown("---")
+    st.header("How to use")
+    st.write("1. Enter query.\n2. Review insights.\n3. *Educational use only.*")
+    st.markdown("---")
+    st.caption("Created by: **Snehal Mukherjee, Renisha Gracelin, Bhumiga, Lavanaya**")
+
+# 3. Main Title
+st.title("🧬 BioGPT Medical Assistant")
+st.markdown("---")
+
+# 4. Load BioGPT and Vector Database
+@st.cache_resource
+def load_rag_system():
+    # Load BioGPT model
+    chatbot = pipeline('text-generation', model='microsoft/biogpt')
+    
+    # Load the Database (ensure you have run the indexer script on your PDFs first)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    
+    try:
+        # This looks for a folder named 'faiss_medical_index' in your directory
+        vector_db = FAISS.load_local("faiss_medical_index", embeddings, allow_dangerous_deserialization=True)
+    except:
+        st.error("Database index not found! Please run the indexing script first.")
+        vector_db = None
+        
+    return chatbot, vector_db
+
+with st.spinner("Loading BioGPT & Medical Database..."):
+    chatbot, vector_db = load_rag_system()
+
+# 5. Initialize Chat History
+if 'messages' not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg['role']):
+        st.markdown(msg['content'])
+
+# 6. User Input Logic
+user_input = st.chat_input('Type your health or biology question here...')
+
+if user_input:
+    st.session_state.messages.append({'role': 'user', 'content': user_input})
+    with st.chat_message('user'):
+        st.markdown(user_input)
+
     with st.chat_message('assistant'):
-       with st.spinner('BioGPT is thinking...'): 
-        result = chatbot(user_input, max_new_tokens=150, do_sample=False) 
-        answer = result[0]['generated_text'] 
-        st.write(answer) 
-        st.session_state.messages.append({'role': 'assistant', 'content': answer}) 
-        with st.sidebar: 
-          # This places your Canva logo at the top of the sidebar 
-          st.image("logo.png") 
-          st.title("Navigation & Info") 
-          st.markdown("---") 
-          # Instructions for the user 
-          st.header("How to use") 
-          st.write(""" 1. Enter your medical query in the chat box. 
-                   2. Review the AI-generated insights. 
-                   3. *Note: For educational purposes only.* """) 
-          st.markdown("---") 
-          st.caption("Created by: **Snehal Mukherjee, Renisha Gracelin, Bhumiga, Lavanaya**")
+        with st.spinner('Searching database and thinking...'):
+            
+            # --- RAG LOGIC: Retrieve Context from your PDFs ---
+            context = ""
+            if vector_db:
+                search_results = vector_db.similarity_search(user_input, k=2)
+                context = "\n".join([doc.page_content for doc in search_results])
+            
+            # Provide the retrieved context to BioGPT
+            structured_prompt = f"Context: {context}\nQuestion: {user_input}\nAnswer:"
+            
+            raw_output = chatbot(
+                structured_prompt, 
+                max_new_tokens=150, 
+                temperature=0.4, # Lowered for higher accuracy
+                num_return_sequences=1
+            )
+            
+            full_text = raw_output[0]['generated_text']
+            clean_answer = full_text.split("Answer:")[-1].strip()
+            
+            if not clean_answer:
+                clean_answer = "I'm sorry, I couldn't find a clear answer in the database."
+
+            st.write(clean_answer)
+            st.session_state.messages.append({'role': 'assistant', 'content': clean_answer})
+
+st.markdown("---")
+st.caption("⚠️ **Disclaimer:** Not a substitute for professional medical advice.")
