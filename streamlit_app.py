@@ -1,4 +1,4 @@
-mport streamlit as st
+import streamlit as st
 from transformers import pipeline
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
