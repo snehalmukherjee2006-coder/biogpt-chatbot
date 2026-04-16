@@ -1,0 +1,6 @@
+faiss_medical_index/
+medical_pdfs/
+__pycache__/
+*.pyc
+.streamlit/
+*.env
